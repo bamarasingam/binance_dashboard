@@ -25,8 +25,6 @@ def load_data(symbol, interval, start_date):
                                        'close_time', 'quote_asset_volume', 'number_of_trades',
                                        'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 
-    df_original = df
-
     #Convert to datetime
     df['time'] = pd.to_datetime(df['timestamp'], unit='ms')
 
@@ -51,31 +49,19 @@ def load_data(symbol, interval, start_date):
 
 #Function to get emoji based on returns value
 def get_returns_emoji(ret_val):
-    emoji = ":white_check_mark:"
-    if ret_val < 0:
-        emoji = ":red_circle:"
-    return emoji
+    return ":white_check_mark:" if ret_val >= 0 else ":red_circle:"
 
 #Function to get emoji based on ema value
 def get_ema_emoji(ltp,ema):
-    emoji = ":white_check_mark:"
-    if ltp < ema:
-        emoji = ":red_circle:"
-    return emoji
+    return ":white_check_mark:" if ltp >= ema else ":red_circle:"
 
 #Function to get emoji based on rsi value
 def get_rsi_emoji(rsi):
-    emoji = ":red_circle:"
-    if 30 < rsi < 70:
-        emoji = ":white_check_mark:"
-    return emoji
+    return ":white_check_mark:" if 30 < rsi < 70 else ":red_circle:"
 
 #Function to get emoji based on adx value
 def get_adx_emoji(adx):
-    emoji = ":red_circle:"
-    if adx > 25:
-        emoji = ":white_check_mark:"
-    return emoji
+    return ":white_check_mark:" if adx > 25 else ":red_circle:"
 
 #Function to create chart
 def create_chart(df, symbol):
@@ -98,19 +84,19 @@ st.markdown("<h2 style='text-align: center;'>Crypto Technical Analysis Dashboard
 
 #Sidebar Components
 symbol = st.sidebar.text_input("Crypto Symbol (e.g. BTCUSDT)", "BTCUSDT")
+intervals = ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M')
+default_index = intervals.index('1d')
 interval = st.sidebar.selectbox("Interval", 
-                                ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M'))
+                                options=intervals,
+                                index=default_index)
 
 #Date input for start date
 default_date = datetime.now().date() - timedelta(days=365)
 start_date = st.sidebar.date_input("Start Date", 
                                    value= default_date,
                                    max_value=datetime.now())
-show_data = st.sidebar.checkbox(label="Show Data")
-show_chart = st.sidebar.checkbox(label="Show Chart")
-
-#Convert date to string format
-start_date_str = start_date.strftime("%Y-%m-%d")
+show_data = st.sidebar.checkbox(label="Show Data", value = True)
+show_chart = st.sidebar.checkbox(label="Show Chart", value = True)
 
 df = load_data(symbol, interval, start_date)
 reversed_df = df.iloc[::-1]
@@ -127,15 +113,10 @@ row60_val = reversed_df.iloc[60]['close'] if len(reversed_df) > 60 else row1_val
 row120_val = reversed_df.iloc[120]['close'] if len(reversed_df) > 120 else row1_val
 row240_val = reversed_df.iloc[240]['close'] if len(reversed_df) > 240 else row1_val
 
-#Return Percentage Calculation
 day20_ret_percent = (row1_val - row20_val)/row20_val * 100
-day20_ret_val = (row1_val - row20_val)
 day60_ret_percent = (row1_val - row60_val)/row60_val * 100
-day60_ret_val = (row1_val - row60_val)
 day120_ret_percent = (row1_val - row120_val)/row120_val * 100
-day120_ret_val = (row1_val - row120_val)
 day240_ret_percent = (row1_val - row240_val)/row240_val * 100
-day240_ret_val = (row1_val - row240_val)
 
 #Column wise Display
 col1, col2, col3 = st.columns(3)
