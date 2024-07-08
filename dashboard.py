@@ -4,16 +4,21 @@ import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objs as go
 from binance.client import Client
+from datetime import datetime, timedelta
 
 #Functions
 
 #Function to load in data from Binance
-def load_data(symbol, interval, lookback):
+def load_data(symbol, interval, start_date):
     #Initalize Binance client
     client = Client()
 
+    #Convert start_date to ms timestamp
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    start_ts = int(start_datetime.timestamp() * 1000)
+
     #Fetch candlestick data
-    candles = client.get_historical_klines(symbol, interval, lookback)
+    candles = client.get_historical_klines(symbol, interval, start_ts)
 
     #Create df
     df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 
@@ -95,12 +100,19 @@ st.markdown("<h2 style='text-align: center;'>Crypto Technical Analysis Dashboard
 symbol = st.sidebar.text_input("Crypto Symbol (e.g. BTCUSDT)", "BTCUSDT")
 interval = st.sidebar.selectbox("Interval", 
                                 ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M'))
-lookback = st.sidebar.selectbox("Lookback period", 
-                                ('1 day ago UTC', '1 week ago UTC', '1 month ago UTC', '3 months ago UTC', '6 months ago UTC', '1 year ago UTC'))
+
+#Date input for start date
+default_date = datetime.now().date() - timedelta(days=365)
+start_date = st.sidebar.date_input("Start Date", 
+                                   value= default_date,
+                                   max_value=datetime.now())
 show_data = st.sidebar.checkbox(label="Show Data")
 show_chart = st.sidebar.checkbox(label="Show Chart")
 
-df = load_data(symbol, interval, lookback)
+#Convert date to string format
+start_date_str = start_date.strftime("%Y-%m-%d")
+
+df = load_data(symbol, interval, start_date)
 reversed_df = df.iloc[::-1]
 row1_val = reversed_df.iloc[0]['close']
 ema20_val = reversed_df.iloc[0]['EMA_20']
