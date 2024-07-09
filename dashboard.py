@@ -103,12 +103,13 @@ def create_chart(df, symbol):
 #Create tabs for dashboard
 tab1, tab2 = st.tabs(["Data/Analytics", "ML Predictions"])
 
+#Data/Analytics Tab
 with tab1:
     #Centered title
     st.markdown("<h2 style='text-align: center;'>Crypto Technical Analysis Dashboard</h2>", unsafe_allow_html=True)
 
     #Sidebar Components
-    symbol = st.sidebar.text_input("Crypto Symbol (e.g. BTCUSDT)", "BTCUSDT")
+    symbol = st.sidebar.text_input("Crypto Symbol (ex. BTCUSDT)\n\nMust be a ticker from Binance", "BTCUSDT")
     intervals = ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M')
     default_index = intervals.index('1d')
     interval = st.sidebar.selectbox("Interval", 
@@ -143,17 +144,17 @@ with tab1:
     day120_ret_percent = (row1_val - row120_val)/row120_val * 100
     day240_ret_percent = (row1_val - row240_val)/row240_val * 100
 
-    #Column wise Display
+    #Displays (column wide)
     col1, col2, col3 = st.columns(3)
     with col1:
         st.subheader("Returns")
-        st.markdown(f"- 1  MONTH : {round(day20_ret_percent,2)}% {get_returns_emoji(round(day20_ret_percent,2))}")
-        st.markdown(f"- 3  MONTHS : {round(day60_ret_percent,2)}% {get_returns_emoji(round(day60_ret_percent,2))}")
-        st.markdown(f"- 6  MONTHS : {round(day120_ret_percent,2)}% {get_returns_emoji(round(day120_ret_percent,2))}")
+        st.markdown(f"- 1 MONTH : {round(day20_ret_percent,2)}% {get_returns_emoji(round(day20_ret_percent,2))}")
+        st.markdown(f"- 3 MONTHS : {round(day60_ret_percent,2)}% {get_returns_emoji(round(day60_ret_percent,2))}")
+        st.markdown(f"- 6 MONTHS : {round(day120_ret_percent,2)}% {get_returns_emoji(round(day120_ret_percent,2))}")
         st.markdown(f"- 12 MONTHS : {round(day240_ret_percent,2)}% {get_returns_emoji(round(day240_ret_percent,2))}")
     with col2:
         st.subheader("Momentum")
-        st.markdown(f"- LTP : {round(row1_val,2)}") 
+        st.markdown(f"- LTP : {round(row1_val,2)}")
         st.markdown(f"- EMA20 : {round(ema20_val,2)} {get_ema_emoji(round(row1_val,2),round(ema20_val,2))}") 
         st.markdown(f"- EMA200 : {round(ema200_val,2)} {get_ema_emoji(round(row1_val,2),round(ema200_val,2))}") 
         st.markdown(f"- RSI : {round(rsi_val,2)} {get_rsi_emoji(round(rsi_val,2))}") 
@@ -168,3 +169,8 @@ with tab1:
 
     if show_data:
         st.write(reversed_df)
+
+#ML Predictions Tab
+with tab2: 
+    #Centered title
+    st.markdown("<h2 style='text-align: center;'>Predictions Using Machine Learning</h2>", unsafe_allow_html=True)
