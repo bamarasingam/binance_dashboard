@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 from binance.client import Client
 from datetime import datetime, timedelta
 
-#Functions
+#---------------------------------------------------Functions-------------------------------------------------
 
 #Function to load in data from Binance
 def load_data(symbol, interval, start_date):
@@ -27,7 +27,7 @@ def load_data(symbol, interval, start_date):
 
     #Convert to datetime
     df['time'] = pd.to_datetime(df['timestamp'], unit='ms')
-
+    
     #Keep OHLCV + time
     df = df[['time', 'open', 'high', 'low', 'close', 'volume']]
 
@@ -36,7 +36,8 @@ def load_data(symbol, interval, start_date):
         df[col] = df[col].astype(float)
 
     #Format time as string value
-    df['time'] = df['time'].dt.strftime('%Y-%m-%d')
+    #df['time'] = df['time'].dt.strftime('%Y-%m-%d')
+    df['time'] = pd.to_datetime(df['time'])
 
     #Calculate indicators
     df.ta.ema(length=20, append=True)
@@ -65,19 +66,39 @@ def get_adx_emoji(adx):
 
 #Function to create chart
 def create_chart(df, symbol):
-    candlestick_chart = go.Figure(data=[go.Candlestick(x=df.index,open=df['open'],high=df['high'],low=df['low'],close=df['close'])])
-    ema20 = go.Scatter(x = df.EMA_20.index,y = df.EMA_20.values,name = 'EMA20')
-    ema200 = go.Scatter(x = df.EMA_200.index,y = df.EMA_200.values,name = 'EMA200')
-    # Create the candlestick chart
+    candlestick_chart = go.Figure(data=[go.Candlestick(x=df['time'],
+                                                       open=df['open'],
+                                                       high=df['high'],
+                                                       low=df['low'],
+                                                       close=df['close'])])
+    
+    ema20 = go.Scatter(x=df['time'], y=df.EMA_20.values, name='EMA20')
+    ema200 = go.Scatter(x=df['time'], y=df.EMA_200.values, name='EMA200')
+    
     candlestick_chart.update_layout(title=f'{symbol} Historical Candlestick Chart',
-                                        xaxis_title='Date',
-                                        yaxis_title='Price',
-                                        xaxis_rangeslider_visible=True)
+                                    xaxis_title='Date',
+                                    yaxis_title='Price',
+                                    xaxis_rangeslider_visible=True)
+    
     candlestick_chart.add_trace(ema20)
     candlestick_chart.add_trace(ema200)
+    
+    candlestick_chart.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=6, label="6m", step="month", stepmode="backward"),
+                dict(count=1, label="YTD", step="year", stepmode="todate"),
+                dict(count=1, label="1y", step="year", stepmode="backward"),
+                dict(step="all")
+            ])
+        )
+    )
+    
     return candlestick_chart
 
-#Streamlit
+#---------------------------------------------------Streamlit-------------------------------------------------
 
 #Centered title
 st.markdown("<h2 style='text-align: center;'>Crypto Technical Analysis Dashboard</h2>", unsafe_allow_html=True)
@@ -99,7 +120,7 @@ show_data = st.sidebar.checkbox(label="Show Data", value = True)
 show_chart = st.sidebar.checkbox(label="Show Chart", value = True)
 
 df = load_data(symbol, interval, start_date)
-reversed_df = df.iloc[::-1]
+reversed_df = df.iloc[::-1] #Reversed dataframe to be shown in Streamlit
 row1_val = reversed_df.iloc[0]['close']
 ema20_val = reversed_df.iloc[0]['EMA_20']
 ema200_val = reversed_df.iloc[0]['EMA_200']
@@ -138,8 +159,8 @@ with col3:
     st.markdown(f"- DMP : {round(dmp,2)} ") 
     st.markdown(f"- DMN : {round(dmn,2)} ") 
 
-if show_data:
-    st.write(reversed_df)
-
 if show_chart:
     st.plotly_chart(create_chart(df, symbol))
+
+if show_data:
+    st.write(reversed_df)
