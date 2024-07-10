@@ -225,17 +225,35 @@ with tab2:
 
     # User inputs for model
     st.sidebar.subheader("ML Model Parameters")
-    prediction_days = st.sidebar.slider("Training data timeframe (days)", 30, 365, 180)
-    future_bars = st.sidebar.slider("Number of future bars to predict", 1, 100, 30)
+    prediction_days = st.sidebar.slider("Training data timeframe", 30, 365, 180)
+    future_bars = st.sidebar.slider("Number of future bars to predict", 1, 365, 1)
 
     # Convert interval to timedelta
-    interval_timedelta = pd.Timedelta(interval)
+    def interval_to_timedelta(interval):
+        interval_map = {
+            '1m': pd.Timedelta(minutes=1),
+            '3m': pd.Timedelta(minutes=3),
+            '5m': pd.Timedelta(minutes=5),
+            '15m': pd.Timedelta(minutes=15),
+            '30m': pd.Timedelta(minutes=30),
+            '1h': pd.Timedelta(hours=1),
+            '2h': pd.Timedelta(hours=2),
+            '4h': pd.Timedelta(hours=4),
+            '6h': pd.Timedelta(hours=6),
+            '8h': pd.Timedelta(hours=8),
+            '12h': pd.Timedelta(hours=12),
+            '1d': pd.Timedelta(days=1),
+            '3d': pd.Timedelta(days=3),
+            '1w': pd.Timedelta(weeks=1),
+            '1M': pd.Timedelta(days=30),  # Approximation
+        }
+        return interval_map.get(interval, pd.Timedelta(days=1))
+
+    interval_timedelta = interval_to_timedelta(interval)
 
     # Prepare data for ML model
     df_ml = df.copy()
-    df_ml.index = pd.to_datetime(df_ml.index)  # Ensure the index is datetime
-    df_ml['Target'] = np.where(df_ml['close'].shift(-1) > df_ml['close'], 1, 0)
-
+    
     # Feature engineering
     df_ml['SMA_10'] = df_ml['close'].rolling(window=10).mean()
     df_ml['SMA_30'] = df_ml['close'].rolling(window=30).mean()
@@ -243,9 +261,9 @@ with tab2:
     df_ml['ATR'] = ta.atr(df_ml['high'], df_ml['low'], df_ml['close'], length=14)
 
     # Prepare features and target
-    features = ['open', 'high', 'low', 'close', 'volume', 'EMA_20', 'EMA_200', 'RSI_14', 'SMA_10', 'SMA_30', 'RSI', 'ATR']
+    features = ['open', 'high', 'low', 'volume', 'EMA_20', 'EMA_200', 'RSI_14', 'SMA_10', 'SMA_30', 'RSI', 'ATR']
     X = df_ml[features].iloc[-prediction_days:]
-    y = df_ml['Target'].iloc[-prediction_days:]
+    y = df_ml['close'].iloc[-prediction_days:]
 
     # Handle NaN values
     imputer = SimpleImputer(strategy='mean')
@@ -255,41 +273,48 @@ with tab2:
     X_train, X_test, y_train, y_test = train_test_split(X_imputed, y, test_size=0.2, random_state=42)
 
     # Scale features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    scaler_X = StandardScaler()
+    X_train_scaled = scaler_X.fit_transform(X_train)
+    X_test_scaled = scaler_X.transform(X_test)
+
+    # Scale target
+    scaler_y = StandardScaler()
+    y_train_scaled = scaler_y.fit_transform(y_train.values.reshape(-1, 1)).flatten()
+    y_test_scaled = scaler_y.transform(y_test.values.reshape(-1, 1)).flatten()
 
     # Train model
-    model = LogisticRegression(random_state=42)
-    model.fit(X_train_scaled, y_train)
+    from sklearn.linear_model import LinearRegression
+    model = LinearRegression()
+    model.fit(X_train_scaled, y_train_scaled)
 
     # Make predictions
-    y_pred = model.predict(X_test_scaled)
+    y_pred_scaled = model.predict(X_test_scaled)
+    y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
 
     # Display model performance
+    from sklearn.metrics import mean_squared_error, r2_score
     st.subheader("Model Performance")
-    st.write(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
-    st.text("Classification Report:")
-    st.text(classification_report(y_test, y_pred))
+    st.write(f"Mean Squared Error: {mean_squared_error(y_test, y_pred):.2f}")
+    st.write(f"R-squared Score: {r2_score(y_test, y_pred):.2f}")
 
     # Predict future prices
     last_date = pd.to_datetime(df_ml.index[-1])
     future_dates = pd.date_range(start=last_date + interval_timedelta, periods=future_bars, freq=interval_timedelta)
     future_features = X.iloc[-1:].values.repeat(future_bars, axis=0)
     future_features_imputed = imputer.transform(future_features)
-    future_features_scaled = scaler.transform(future_features_imputed)
-    future_predictions = model.predict(future_features_scaled)
+    future_features_scaled = scaler_X.transform(future_features_imputed)
+    future_predictions_scaled = model.predict(future_features_scaled)
+    future_predictions = scaler_y.inverse_transform(future_predictions_scaled.reshape(-1, 1)).flatten()
 
     # Display future predictions
-    st.subheader(f"Price Direction Predictions for Next {future_bars} {interval} Bars")
+    st.subheader(f"Price Predictions for Next {future_bars} {interval} Bars")
     for date, prediction in zip(future_dates, future_predictions):
-        direction = "Up" if prediction == 1 else "Down"
-        st.write(f"{date}: {direction}")
+        st.write(f"{date}: ${prediction:.2f}")
 
     # Plot predictions
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=future_dates, y=future_predictions, mode='lines+markers', name='Predictions'))
-    fig.update_layout(title=f'Price Direction Predictions for Next {future_bars} {interval} Bars',
+    fig.update_layout(title=f'Price Predictions for Next {future_bars} {interval} Bars',
                       xaxis_title='Date',
-                      yaxis_title='Prediction (1: Up, 0: Down)')
+                      yaxis_title='Predicted Price ($)')
     st.plotly_chart(fig)
