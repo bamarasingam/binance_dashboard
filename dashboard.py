@@ -3,8 +3,15 @@ import streamlit as st
 import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 from binance.client import Client
 from datetime import datetime, timedelta
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.impute import SimpleImputer
+import numpy as np
 
 #---------------------------------------------------Functions-------------------------------------------------
 
@@ -45,6 +52,8 @@ def load_data(symbol, interval, start_date):
     df.ta.rsi(length=14, append=True)
     df.ta.adx(length=14, append=True)
     df.ta.atr(length=14, append=True)
+    df.ta.bbands(length=14, append=True)
+    df.ta.macd(length=20,append = True)
 
     return df
 
@@ -66,35 +75,62 @@ def get_adx_emoji(adx):
 
 #Function to create chart
 def create_chart(df, symbol, chart_type):
+    # Create subplots
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.1, 
+                        subplot_titles=(f'{symbol} {chart_type} Chart', 'Volume'),
+                        row_heights=[0.7, 0.3])
+
+    # Add main price chart
     if chart_type == "Candlestick":
-        main_trace = go.Candlestick(x=df['time'],
-                                    open=df['open'],
-                                    high=df['high'],
-                                    low=df['low'],
-                                    close=df['close'],
-                                    name="Price")
+        fig.add_trace(
+            go.Candlestick(x=df['time'],
+                           open=df['open'],
+                           high=df['high'],
+                           low=df['low'],
+                           close=df['close'],
+                           name="Price"),
+            row=1, col=1
+        )
     else:  # Line chart
-        main_trace = go.Scatter(x=df['time'],
-                                y=df['close'],
-                                mode='lines',
-                                name="Price")
-    
-    fig = go.Figure(data=[main_trace])
+        fig.add_trace(
+            go.Scatter(x=df['time'],
+                       y=df['close'],
+                       mode='lines',
+                       name="Price"),
+            row=1, col=1
+        )
     
     # Add EMA lines
-    ema20 = go.Scatter(x=df['time'], y=df.EMA_20.values, name='EMA20', line=dict(color='blue'))
-    ema200 = go.Scatter(x=df['time'], y=df.EMA_200.values, name='EMA200', line=dict(color='red'))
+    fig.add_trace(
+        go.Scatter(x=df['time'], y=df.EMA_20.values, name='EMA20', line=dict(color='blue')),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df['time'], y=df.EMA_200.values, name='EMA200', line=dict(color='red')),
+        row=1, col=1
+    )
     
-    fig.add_trace(ema20)
-    fig.add_trace(ema200)
+    # Add volume chart
+    fig.add_trace(
+        go.Bar(x=df['time'], y=df['volume'], name='Volume'),
+        row=2, col=1
+    )
     
-    fig.update_layout(title=f'{symbol} Historical {chart_type} Chart',
-                      xaxis_title='Date',
-                      yaxis_title='Price',
-                      xaxis_rangeslider_visible=True)
+    # Update layout
+    fig.update_layout(
+        title_text=f'{symbol} Historical Data',
+        xaxis_rangeslider_visible=False,
+        height=800,  # Increase overall height of the figure
+        showlegend=True
+    )
+
+    # Update y-axis labels
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
     
+    # Update x-axis
     fig.update_xaxes(
-        rangeslider_visible=True,
         rangeselector=dict(
             buttons=list([
                 dict(count=1, label="1m", step="month", stepmode="backward"),
@@ -103,12 +139,11 @@ def create_chart(df, symbol, chart_type):
                 dict(count=1, label="1y", step="year", stepmode="backward"),
                 dict(step="all")
             ])
-        )
+        ),
+        row=2, col=1  # Add range selector to bottom subplot
     )
     
     return fig
-    
-    return candlestick_chart
 
 #---------------------------------------------------Streamlit-------------------------------------------------
 
@@ -178,12 +213,83 @@ with tab1:
         st.markdown(f"- DMN : {round(dmn,2)} ") 
 
     if show_chart:
-        st.plotly_chart(create_chart(df, symbol, chart_type))
+        st.plotly_chart(create_chart(df, symbol, chart_type), use_container_width=True)
 
     if show_data:
         st.write(reversed_df)
 
 #ML Predictions Tab
-with tab2: 
+with tab2:
     #Centered title
     st.markdown("<h2 style='text-align: center;'>Predictions Using Machine Learning</h2>", unsafe_allow_html=True)
+
+    # User inputs for model
+    st.sidebar.subheader("ML Model Parameters")
+    prediction_days = st.sidebar.slider("Training data timeframe (days)", 30, 365, 180)
+    future_bars = st.sidebar.slider("Number of future bars to predict", 1, 100, 30)
+
+    # Convert interval to timedelta
+    interval_timedelta = pd.Timedelta(interval)
+
+    # Prepare data for ML model
+    df_ml = df.copy()
+    df_ml.index = pd.to_datetime(df_ml.index)  # Ensure the index is datetime
+    df_ml['Target'] = np.where(df_ml['close'].shift(-1) > df_ml['close'], 1, 0)
+
+    # Feature engineering
+    df_ml['SMA_10'] = df_ml['close'].rolling(window=10).mean()
+    df_ml['SMA_30'] = df_ml['close'].rolling(window=30).mean()
+    df_ml['RSI'] = ta.rsi(df_ml['close'], length=14)
+    df_ml['ATR'] = ta.atr(df_ml['high'], df_ml['low'], df_ml['close'], length=14)
+
+    # Prepare features and target
+    features = ['open', 'high', 'low', 'close', 'volume', 'EMA_20', 'EMA_200', 'RSI_14', 'SMA_10', 'SMA_30', 'RSI', 'ATR']
+    X = df_ml[features].iloc[-prediction_days:]
+    y = df_ml['Target'].iloc[-prediction_days:]
+
+    # Handle NaN values
+    imputer = SimpleImputer(strategy='mean')
+    X_imputed = imputer.fit_transform(X)
+
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(X_imputed, y, test_size=0.2, random_state=42)
+
+    # Scale features
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # Train model
+    model = LogisticRegression(random_state=42)
+    model.fit(X_train_scaled, y_train)
+
+    # Make predictions
+    y_pred = model.predict(X_test_scaled)
+
+    # Display model performance
+    st.subheader("Model Performance")
+    st.write(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+    st.text("Classification Report:")
+    st.text(classification_report(y_test, y_pred))
+
+    # Predict future prices
+    last_date = pd.to_datetime(df_ml.index[-1])
+    future_dates = pd.date_range(start=last_date + interval_timedelta, periods=future_bars, freq=interval_timedelta)
+    future_features = X.iloc[-1:].values.repeat(future_bars, axis=0)
+    future_features_imputed = imputer.transform(future_features)
+    future_features_scaled = scaler.transform(future_features_imputed)
+    future_predictions = model.predict(future_features_scaled)
+
+    # Display future predictions
+    st.subheader(f"Price Direction Predictions for Next {future_bars} {interval} Bars")
+    for date, prediction in zip(future_dates, future_predictions):
+        direction = "Up" if prediction == 1 else "Down"
+        st.write(f"{date}: {direction}")
+
+    # Plot predictions
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=future_dates, y=future_predictions, mode='lines+markers', name='Predictions'))
+    fig.update_layout(title=f'Price Direction Predictions for Next {future_bars} {interval} Bars',
+                      xaxis_title='Date',
+                      yaxis_title='Prediction (1: Up, 0: Down)')
+    st.plotly_chart(fig)
