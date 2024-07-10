@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from binance.client import Client
 from datetime import datetime, timedelta
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -170,7 +170,7 @@ with tab1:
                                     value= default_date,
                                     max_value=datetime.now())
     chart_type = st.sidebar.radio("Chart Type", ("Candlestick", "Line"))
-    show_chart = st.sidebar.checkbox(label="Show Chart", value = True)
+    show_chart = st.sidebar.checkbox(label="Show Chart/Volume", value = True)
     show_data = st.sidebar.checkbox(label="Show Data", value = True)
 
     df = load_data(symbol, interval, start_date)
@@ -224,12 +224,12 @@ with tab2:
     #Centered title
     st.markdown("<h2 style='text-align: center;'>Predictions Using Machine Learning</h2>", unsafe_allow_html=True)
 
-    # User inputs for model
+    #User inputs for model
     st.sidebar.subheader("ML Model Parameters")
     prediction_days = st.sidebar.slider("Training data timeframe", 30, 365, 180)
     future_bars = st.sidebar.slider("Number of future bars to predict", 1, 365, 1)
 
-    # Convert interval to timedelta
+    #Convert interval to timedelta
     def interval_to_timedelta(interval):
         interval_map = {
             '1m': pd.Timedelta(minutes=1),
@@ -246,76 +246,37 @@ with tab2:
             '1d': pd.Timedelta(days=1),
             '3d': pd.Timedelta(days=3),
             '1w': pd.Timedelta(weeks=1),
-            '1M': pd.Timedelta(days=30),  # Approximation
+            '1M': pd.Timedelta(days=30),  
         }
         return interval_map.get(interval, pd.Timedelta(days=1))
 
     interval_timedelta = interval_to_timedelta(interval)
 
-    # Prepare data for ML model
-    df_ml = df.copy()
-    
-    # Feature engineering
-    df_ml['SMA_10'] = df_ml['close'].rolling(window=10).mean()
-    df_ml['SMA_30'] = df_ml['close'].rolling(window=30).mean()
-    df_ml['RSI'] = ta.rsi(df_ml['close'], length=14)
-    df_ml['ATR'] = ta.atr(df_ml['high'], df_ml['low'], df_ml['close'], length=14)
+    #Linear Regression Model
+    df_lr = df[['time', 'close']]
+    df_lr.set_index('time', inplace=True)
+    st.write(df_lr)
 
-    # Prepare features and target
-    features = ['open', 'high', 'low', 'volume', 'EMA_20', 'EMA_200', 'RSI_14', 'SMA_10', 'SMA_30', 'RSI', 'ATR']
-    X = df_ml[features].iloc[-prediction_days:]
-    y = df_ml['close'].iloc[-prediction_days:]
+    X = df_lr.index.values.reshape(-1,1)
+    y = df_lr['close'].values
 
-    # Handle NaN values
-    imputer = SimpleImputer(strategy='mean')
-    X_imputed = imputer.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
 
-    # Split data
-    X_train, X_test, y_train, y_test = train_test_split(X_imputed, y, test_size=0.2, random_state=42)
+    scaler = MinMaxScaler(feature_range=(0,1))
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    scaler = MinMaxScaler()
+    y_train_scaled = scaler.fit_transform(y_train.reshape(-1,1))
+    y_test_scaled = scaler.transform(y_test.reshape(-1,1))
 
-    # Scale features
-    scaler_X = StandardScaler()
-    X_train_scaled = scaler_X.fit_transform(X_train)
-    X_test_scaled = scaler_X.transform(X_test)
+    lr = LinearRegression()
+    lr.fit(X_train_scaled, y_train_scaled)
 
-    # Scale target
-    scaler_y = StandardScaler()
-    y_train_scaled = scaler_y.fit_transform(y_train.values.reshape(-1, 1)).flatten()
-    y_test_scaled = scaler_y.transform(y_test.values.reshape(-1, 1)).flatten()
-
-    # Train model
-    from sklearn.linear_model import LinearRegression
-    model = LinearRegression()
-    model.fit(X_train_scaled, y_train_scaled)
-
-    # Make predictions
     y_pred_scaled = model.predict(X_test_scaled)
-    y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
+    y_pred = scaler.inverse_transform(y_pred_scaled)
 
-    # Display model performance
-    from sklearn.metrics import mean_squared_error, r2_score
-    st.subheader("Model Performance")
-    st.write(f"Mean Squared Error: {mean_squared_error(y_test, y_pred):.2f}")
-    st.write(f"R-squared Score: {r2_score(y_test, y_pred):.2f}")
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
 
-    # Predict future prices
-    last_date = pd.to_datetime(df_ml.index[-1])
-    future_dates = pd.date_range(start=last_date + interval_timedelta, periods=future_bars, freq=interval_timedelta)
-    future_features = X.iloc[-1:].values.repeat(future_bars, axis=0)
-    future_features_imputed = imputer.transform(future_features)
-    future_features_scaled = scaler_X.transform(future_features_imputed)
-    future_predictions_scaled = model.predict(future_features_scaled)
-    future_predictions = scaler_y.inverse_transform(future_predictions_scaled.reshape(-1, 1)).flatten()
+    
 
-    # Display future predictions
-    st.subheader(f"Price Predictions for Next {future_bars} {interval} Bars")
-    for date, prediction in zip(future_dates, future_predictions):
-        st.write(f"{date}: ${prediction:.2f}")
-
-    # Plot predictions
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=future_dates, y=future_predictions, mode='lines+markers', name='Predictions'))
-    fig.update_layout(title=f'Price Predictions for Next {future_bars} {interval} Bars',
-                      xaxis_title='Date',
-                      yaxis_title='Predicted Price ($)')
-    st.plotly_chart(fig)
