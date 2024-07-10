@@ -7,9 +7,10 @@ from plotly.subplots import make_subplots
 from binance.client import Client
 from datetime import datetime, timedelta
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import mean_squared_error, accuracy_score, classification_report
 from sklearn.impute import SimpleImputer
 import numpy as np
 
