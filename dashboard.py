@@ -65,25 +65,35 @@ def get_adx_emoji(adx):
     return ":white_check_mark:" if adx > 25 else ":red_circle:"
 
 #Function to create chart
-def create_chart(df, symbol):
-    candlestick_chart = go.Figure(data=[go.Candlestick(x=df['time'],
-                                                       open=df['open'],
-                                                       high=df['high'],
-                                                       low=df['low'],
-                                                       close=df['close'])])
+def create_chart(df, symbol, chart_type):
+    if chart_type == "Candlestick":
+        main_trace = go.Candlestick(x=df['time'],
+                                    open=df['open'],
+                                    high=df['high'],
+                                    low=df['low'],
+                                    close=df['close'],
+                                    name="Price")
+    else:  # Line chart
+        main_trace = go.Scatter(x=df['time'],
+                                y=df['close'],
+                                mode='lines',
+                                name="Price")
     
-    ema20 = go.Scatter(x=df['time'], y=df.EMA_20.values, name='EMA20')
-    ema200 = go.Scatter(x=df['time'], y=df.EMA_200.values, name='EMA200')
+    fig = go.Figure(data=[main_trace])
     
-    candlestick_chart.update_layout(title=f'{symbol} Historical Candlestick Chart',
-                                    xaxis_title='Date',
-                                    yaxis_title='Price',
-                                    xaxis_rangeslider_visible=True)
+    # Add EMA lines
+    ema20 = go.Scatter(x=df['time'], y=df.EMA_20.values, name='EMA20', line=dict(color='blue'))
+    ema200 = go.Scatter(x=df['time'], y=df.EMA_200.values, name='EMA200', line=dict(color='red'))
     
-    candlestick_chart.add_trace(ema20)
-    candlestick_chart.add_trace(ema200)
+    fig.add_trace(ema20)
+    fig.add_trace(ema200)
     
-    candlestick_chart.update_xaxes(
+    fig.update_layout(title=f'{symbol} Historical {chart_type} Chart',
+                      xaxis_title='Date',
+                      yaxis_title='Price',
+                      xaxis_rangeslider_visible=True)
+    
+    fig.update_xaxes(
         rangeslider_visible=True,
         rangeselector=dict(
             buttons=list([
@@ -95,6 +105,8 @@ def create_chart(df, symbol):
             ])
         )
     )
+    
+    return fig
     
     return candlestick_chart
 
@@ -121,8 +133,9 @@ with tab1:
     start_date = st.sidebar.date_input("Start Date", 
                                     value= default_date,
                                     max_value=datetime.now())
-    show_data = st.sidebar.checkbox(label="Show Data", value = True)
+    chart_type = st.sidebar.radio("Chart Type", ("Candlestick", "Line"))
     show_chart = st.sidebar.checkbox(label="Show Chart", value = True)
+    show_data = st.sidebar.checkbox(label="Show Data", value = True)
 
     df = load_data(symbol, interval, start_date)
     reversed_df = df.iloc[::-1] #Reversed dataframe to be shown in Streamlit
@@ -165,7 +178,7 @@ with tab1:
         st.markdown(f"- DMN : {round(dmn,2)} ") 
 
     if show_chart:
-        st.plotly_chart(create_chart(df, symbol))
+        st.plotly_chart(create_chart(df, symbol, chart_type))
 
     if show_data:
         st.write(reversed_df)
