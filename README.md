@@ -1,1 +1,1 @@
-# crypto_dashboard
+# Binance Dashboard
