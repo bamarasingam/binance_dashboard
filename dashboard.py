@@ -219,10 +219,10 @@ with tab1:
     if show_data:
         st.write(reversed_df)
 
-#ML Predictions Tab
+#Linear Regression Tab
 with tab2:
     #Centered title
-    st.markdown("<h2 style='text-align: center;'>Predictions Using Multiple Linear Regression</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Predictions Using Linear Regression</h2>", unsafe_allow_html=True)
 
     #User inputs for model
     st.sidebar.subheader("ML Model Parameters")
