@@ -407,3 +407,6 @@ with tab3:
     # Display the table in Streamlit
     st.subheader("Comparison of Actual vs Predicted Values")
     st.dataframe(comparison_df)
+
+    st.write("Class distribution:")
+    st.write(df['long_or_short'].value_counts(normalize=True))
