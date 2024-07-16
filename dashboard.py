@@ -253,28 +253,4 @@ with tab2:
     interval_timedelta = interval_to_timedelta(interval)
 
     #Linear Regression Model
-    df_lr = df[['time', 'close']]
-    df_lr.set_index('time', inplace=True)
-    st.write(df_lr)
-
-    X = df_lr.index.values.reshape(-1,1)
-    y = df_lr['close'].values
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
-
-    scaler = MinMaxScaler(feature_range=(0,1))
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    scaler = MinMaxScaler()
-    y_train_scaled = scaler.fit_transform(y_train.reshape(-1,1))
-    y_test_scaled = scaler.transform(y_test.reshape(-1,1))
-
-    lr = LinearRegression()
-    lr.fit(X_train_scaled, y_train_scaled)
-
-    y_pred_scaled = lr.predict(X_test_scaled)
-    y_pred = scaler.inverse_transform(y_pred_scaled)
-
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse)
-
+   
