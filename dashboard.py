@@ -10,10 +10,10 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, accuracy_score, classification_report
+from sklearn import metrics
 from sklearn.impute import SimpleImputer
 import numpy as np
-
+import matplotlib.pyplot as plt
 #---------------------------------------------------Functions-------------------------------------------------
 
 #Function to load in data from Binance
@@ -46,6 +46,7 @@ def load_data(symbol, interval, start_date):
     #Format time as string value
     #df['time'] = df['time'].dt.strftime('%Y-%m-%d')
     df['time'] = pd.to_datetime(df['time'])
+    df.set_index('time', inplace=True)
 
     #Calculate indicators
     df.ta.ema(length=20, append=True)
@@ -85,7 +86,7 @@ def create_chart(df, symbol, chart_type):
     # Add main price chart
     if chart_type == "Candlestick":
         fig.add_trace(
-            go.Candlestick(x=df['time'],
+            go.Candlestick(x=df.index,
                            open=df['open'],
                            high=df['high'],
                            low=df['low'],
@@ -95,7 +96,7 @@ def create_chart(df, symbol, chart_type):
         )
     else:  # Line chart
         fig.add_trace(
-            go.Scatter(x=df['time'],
+            go.Scatter(x=df.index,
                        y=df['close'],
                        mode='lines',
                        name="Price"),
@@ -104,17 +105,17 @@ def create_chart(df, symbol, chart_type):
     
     # Add EMA lines
     fig.add_trace(
-        go.Scatter(x=df['time'], y=df.EMA_20.values, name='EMA20', line=dict(color='blue')),
+        go.Scatter(x=df.index, y=df.EMA_20.values, name='EMA20', line=dict(color='blue')),
         row=1, col=1
     )
     fig.add_trace(
-        go.Scatter(x=df['time'], y=df.EMA_200.values, name='EMA200', line=dict(color='red')),
+        go.Scatter(x=df.index, y=df.EMA_200.values, name='EMA200', line=dict(color='red')),
         row=1, col=1
     )
     
     # Add volume chart
     fig.add_trace(
-        go.Bar(x=df['time'], y=df['volume'], name='Volume'),
+        go.Bar(x=df.index, y=df['volume'], name='Volume'),
         row=2, col=1
     )
     
@@ -146,6 +147,13 @@ def create_chart(df, symbol, chart_type):
     
     return fig
 
+# Define function for lags using returns
+def lagit(df, lags):
+    names = []
+    for i in range(1, lags+1):
+        df['Lag_' + str(i)] = df['returns'].shift(i)
+        names.append('Lag_' + str(i))
+    return names
 #---------------------------------------------------Streamlit-------------------------------------------------
 
 #Create tabs for dashboard
@@ -171,7 +179,8 @@ with tab1:
                                     max_value=datetime.now())
     chart_type = st.sidebar.radio("Chart Type", ("Candlestick", "Line"))
     show_chart = st.sidebar.checkbox(label="Show Chart/Volume", value = True)
-    show_data = st.sidebar.checkbox(label="Show Data", value = True)
+    show_original_data = st.sidebar.checkbox(label="Show Original Data", value = True)
+    show_lag_data = st.sidebar.checkbox(label="Show Data with Lags", value = True)
 
     df = load_data(symbol, interval, start_date)
     reversed_df = df.iloc[::-1] #Reversed dataframe to be shown in Streamlit
@@ -216,41 +225,59 @@ with tab1:
     if show_chart:
         st.plotly_chart(create_chart(df, symbol, chart_type), use_container_width=True)
 
-    if show_data:
+    if show_original_data:
         st.write(reversed_df)
-
+        
 #Linear Regression Tab
 with tab2:
     #Centered title
     st.markdown("<h2 style='text-align: center;'>Predictions Using Linear Regression</h2>", unsafe_allow_html=True)
 
-    #User inputs for model
-    st.sidebar.subheader("ML Model Parameters")
-    prediction_days = st.sidebar.slider("Training data timeframe", 30, 365, 180)
-    future_bars = st.sidebar.slider("Number of future bars to predict", 1, 365, 1)
+    # Create returns column
+    df['returns'] = np.log(df.close.pct_change() + 1)
 
-    #Convert interval to timedelta
-    def interval_to_timedelta(interval):
-        interval_map = {
-            '1m': pd.Timedelta(minutes=1),
-            '3m': pd.Timedelta(minutes=3),
-            '5m': pd.Timedelta(minutes=5),
-            '15m': pd.Timedelta(minutes=15),
-            '30m': pd.Timedelta(minutes=30),
-            '1h': pd.Timedelta(hours=1),
-            '2h': pd.Timedelta(hours=2),
-            '4h': pd.Timedelta(hours=4),
-            '6h': pd.Timedelta(hours=6),
-            '8h': pd.Timedelta(hours=8),
-            '12h': pd.Timedelta(hours=12),
-            '1d': pd.Timedelta(days=1),
-            '3d': pd.Timedelta(days=3),
-            '1w': pd.Timedelta(weeks=1),
-            '1M': pd.Timedelta(days=30),  
-        }
-        return interval_map.get(interval, pd.Timedelta(days=1))
+    # Call function with associated amount of lags
+    lagnames = lagit(df, 5)
+    df.dropna(inplace=True)
 
-    interval_timedelta = interval_to_timedelta(interval)
+    # Display the DataFrame with calculated lags
+    if show_lag_data:
+        st.markdown("<h3 style='text-align: center;'>Data with Calculated Lags</h3>", unsafe_allow_html=True)
+        st.write(df[['open', 'close', 'volume', 'returns'] + lagnames].head(10))
 
-    #Linear Regression Model
-   
+    # Build model
+    X = df[['open'] + lagnames]
+    y = df['close']
+
+    lr = LinearRegression()
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False, random_state=42)
+
+    lr.fit(X_train, y_train)
+
+    y_pred = lr.predict(X_test)
+
+    # Create plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(y_test.index, y_test, label='Actual Close Price', color='blue')
+    ax.plot(y_test.index, y_pred, label='Predicted Close Price', color='red')
+    ax.set_title('Actual vs Predicted Close Price')
+    ax.legend()
+    plt.xticks(rotation=45)
+
+    # Display the plot in Streamlit
+    st.pyplot(fig)
+
+    # Calculate metrics
+    mse = metrics.mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    mae = metrics.mean_absolute_error(y_test, y_pred)
+    r2 = metrics.r2_score(y_test, y_pred)
+
+    # Display metrics
+    st.subheader('Model Performance Metrics')
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Mean Squared Error", f"{mse:.6f}")
+    col2.metric("Root Mean Squared Error", f"{rmse:.6f}")
+    col3.metric("Mean Absolute Error", f"{mae:.6f}")
+    col4.metric("R-squared Score", f"{r2:.6f}")
