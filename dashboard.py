@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
@@ -203,9 +204,8 @@ with tab1:
                                     value= default_date,
                                     max_value=datetime.now())
     chart_type = st.sidebar.radio("Chart Type", ("Candlestick", "Line"))
-    show_chart = st.sidebar.checkbox(label="Show Chart/Volume", value = True)
-    show_original_data = st.sidebar.checkbox(label="Show Original Data", value = True)
-    show_lag_data = st.sidebar.checkbox(label="Show Data with Lags", value = True)
+
+    st.sidebar.info("Note: The latest row is within a timeframe which has not completed. The close price is the price at the time at which you pulled the data for this most recent row.")
 
     df = load_data(symbol, interval, start_date)
     reversed_df = df.iloc[::-1] #Reversed dataframe to be shown in Streamlit
@@ -246,12 +246,9 @@ with tab1:
         st.markdown(f"- ADX : {round(adx,2)} {get_adx_emoji(round(adx,2))}") 
         st.markdown(f"- DMP : {round(dmp,2)} ") 
         st.markdown(f"- DMN : {round(dmn,2)} ") 
-
-    if show_chart:
-        st.plotly_chart(create_chart(df, symbol, chart_type), use_container_width=True)
-
-    if show_original_data:
-        st.write(reversed_df)
+    
+    st.plotly_chart(create_chart(df, symbol, chart_type), use_container_width=True)
+    st.write(reversed_df)
         
 #Linear Regression Tab
 with tab2:
@@ -266,9 +263,8 @@ with tab2:
     df.dropna(inplace=True)
 
     # Display the DataFrame with calculated lags
-    if show_lag_data:
-        st.subheader('Data with Calculated Lags')
-        st.write(df[['open', 'close', 'volume', 'returns'] + lagnames].sort_index(ascending=False))
+    st.subheader('Data with Calculated Lags')
+    st.write(df[['open', 'close', 'volume', 'returns'] + lagnames].sort_index(ascending=False))
 
     # Build model
     X = df[['open'] + lagnames]
@@ -428,7 +424,7 @@ with tab3:
                           ((results_df['Actual Price Movement'] == 'Price Down') & (results_df['Predicted Action'] == 'Short'))
     accuracy = correct_predictions.mean()
 
-    st.write(f"Logistic Regression Model Accuracy: {accuracy:.2%}")
+    st.write(f"Trading Signal Accuracy: {accuracy:.2%}")
 
 with tab4:
     #Centered title
@@ -498,3 +494,96 @@ with tab4:
 
 with tab5:
     st.markdown("<h2 style='text-align: center;'>Predictions Using Random Forest Classification</h2>", unsafe_allow_html=True)
+
+    #Set up returns and direction
+    df['returns'] = np.log(df.close.pct_change() + 1)
+    df['direction'] = [1 if i>0 else 0 for i in df.returns]
+
+    dirnames = lagit_dir(df, 5)
+
+    df.dropna(inplace=True)
+
+    X = df[['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5']+dirnames]
+    y = df['direction']
+
+    rfc = RandomForestClassifier(n_estimators=100, min_samples_split=100, random_state=42)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False, random_state=42)
+
+    rfc.fit(X_train, y_train)
+
+    y_pred = rfc.predict(X_test)
+
+    #Display DataFrame
+    st.subheader('Data with Calculated Lags and Direction')
+    st.dataframe(df[['open', 'close', 'volume', 'returns', 'direction'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames].sort_index(ascending=False))
+
+    #Confusion Matrix
+    st.subheader('Confusion Matrix')
+    cm = metrics.confusion_matrix(y_test, y_pred)
+    fig, ax = plt.subplots()
+    sns.heatmap(cm, annot=True, fmt='d')
+    plt.title('Confusion Matrix')
+    plt.ylabel('Actual')
+    plt.xlabel('Predicted')
+    st.pyplot(fig)
+
+    #Classification Report
+    st.subheader('Classification Report')
+    report = metrics.classification_report(y_test, y_pred, output_dict=True)
+    st.table(pd.DataFrame(report).transpose())
+
+    #Prediction for latest time
+    latest_data = X.iloc[-1].values.reshape(1, -1)
+    latest_prediction = rfc.predict(latest_data)[0]
+    latest_probability = rfc.predict_proba(latest_data)[0][1]
+
+    if latest_prediction == 1:
+        st.subheader(f"Prediction for Upcoming Close Price: Long")
+    else:
+        st.subheader(f"Prediction for Upcoming Close Price: Short")
+
+    #st.write(f'Probability of price going up: {latest_probability:.2f}')
+
+    #Create dataframe which shows y_test and y_pred
+    results_df = pd.DataFrame({
+    'Actual Price Movement': y_test,
+    'Predicted Action': y_pred
+    },)
+    results_df['Open'] = df.loc[results_df.index, 'open']
+    results_df['Close'] = df.loc[results_df.index, 'close']
+    results_df['Price Change %'] = ((results_df['Close'] - results_df['Open']) / results_df['Open'] * 100).round(2)
+
+
+    column_order = ['Open', 'Close', 'Actual Price Movement', 'Predicted Action', 'Price Change %']
+    results_df = results_df[column_order]
+
+    # Convert binary values to text
+    results_df['Actual Price Movement'] = results_df['Actual Price Movement'].map({1: 'Price Up', 0: 'Price Down'})
+    results_df['Predicted Action'] = results_df['Predicted Action'].map({1: 'Long', 0: 'Short'})
+
+    # Sort the DataFrame by date in descending order
+    results_df = results_df.sort_index(ascending=False)
+
+    # Define color function
+    def color_text(val):
+        if val in ['Price Up', 'Long']:
+            return 'color: green'
+        elif val in ['Price Down', 'Short']:
+            return 'color: red'
+        return ''
+
+    #Style dataframe with above function
+    styled_df = results_df.style.applymap(color_text)
+    #Apply color to price change percentage
+    styled_df = styled_df.applymap(lambda v: 'color: green' if v > 0 else 'color: red' if v < 0 else '', subset=['Price Change %'])  
+
+    #Display the styled DataFrame
+    st.dataframe(styled_df)
+
+    #Model Accuracy
+    correct_predictions = ((results_df['Actual Price Movement'] == 'Price Up') & (results_df['Predicted Action'] == 'Long')) | \
+                          ((results_df['Actual Price Movement'] == 'Price Down') & (results_df['Predicted Action'] == 'Short'))
+    accuracy = correct_predictions.mean()
+
+    st.write(f"Trading Signal Accuracy: {accuracy:.2%}")
