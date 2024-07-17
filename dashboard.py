@@ -170,15 +170,6 @@ def lagit_dir(df, lags):
         names.append('Lag_'+str(i)+'_dir')
     return names
 
-#Function to predict close price for given tiemframe
-def predict_close(model, open_price, lags):
-    # Create a DataFrame with the input features
-    input_data = pd.DataFrame([[open_price] + lags], columns=['open'] + [f'Lag_{i}' for i in range(1, len(lags)+1)])
-    
-    # Make the prediction
-    predicted_close = model.predict(input_data)[0]
-    
-    return predicted_close
 #---------------------------------------------------Streamlit-------------------------------------------------
 
 #Create tabs for dashboard
@@ -299,32 +290,29 @@ with tab2:
     mae = metrics.mean_absolute_error(y_test, y_pred)
     r2 = metrics.r2_score(y_test, y_pred)
 
-    # Display metrics
-    st.subheader('Model Performance Metrics')
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Mean Squared Error", f"{mse:.6f}")
-    col2.metric("Root Mean Squared Error", f"{rmse:.6f}")
-    col3.metric("Mean Absolute Error", f"{mae:.6f}")
-    col4.metric("R-squared Score", f"{r2:.6f}")
+    #Display metrics
+    metrics_df = pd.DataFrame({'Metric': ['Mean Squared Error', 'Root Mean Squared Error', 'Mean Absolute Error', 'R-squared Score'],'Value': [mse, rmse, mae, r2]})
+    st.table(metrics_df.style.format({'Value': '{:.6f}'}))
 
-    # Get the most recent data point
-    latest_data = df.iloc[-1]
+   #Prediction for the latest data point
+    latest_data = X.iloc[-1].values.reshape(1, -1)
+    latest_prediction = lr.predict(latest_data)[0]
 
-    # Extract the required features
-    open_price = latest_data['open']
-    lags = [latest_data[f'Lag_{i}'] for i in range(1, 6)]
+    st.subheader(f"Prediction for Upcoming Close Price: {latest_prediction}")
 
-    # Make the prediction
-    predicted_close = predict_close(lr, open_price, lags)
+    #Create DataFrame with actual and predicted values
+    results_df = pd.DataFrame({
+        'Open': X_test['open'],
+        'Actual Close': y_test,
+        'Predicted Close': y_pred,
+    })
 
-    # Display the prediction
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("Input features used for prediction:")
-        st.write(pd.DataFrame({'Feature': ['Open'] + [f'Lag_{i}' for i in range(1, 6)], 'Value': [open_price] + lags}))
-        
-    with col2:
-        st.metric(label="Predicted Close for Timeframe", value=f"${predicted_close:.2f}")
+    # Round the values to 2 decimal places
+    results_df = results_df.round(2).sort_index(ascending=False)
+
+    # Display the table in Streamlit
+    st.subheader("Actual vs Predicted Close Prices of Test Dataset")
+    st.dataframe(results_df)
 
 #Logistic Regression Tab
 with tab3:
@@ -416,12 +404,8 @@ with tab4:
     r2 = metrics.r2_score(y_test, y_pred)
 
     #Display metrics
-    st.subheader('Model Performance Metrics')
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Mean Squared Error", f"{mse:.6f}")
-    col2.metric("Root Mean Squared Error", f"{rmse:.6f}")
-    col3.metric("Mean Absolute Error", f"{mae:.6f}")
-    col4.metric("R-squared Score", f"{r2:.6f}")
+    metrics_df = pd.DataFrame({'Metric': ['Mean Squared Error', 'Root Mean Squared Error', 'Mean Absolute Error', 'R-squared Score'],'Value': [mse, rmse, mae, r2]})
+    st.table(metrics_df.style.format({'Value': '{:.6f}'}))
 
     #Prediction for the latest data point
     latest_data = X.iloc[-1].values.reshape(1, -1)
@@ -429,6 +413,19 @@ with tab4:
 
     st.subheader("Prediction for Latest Data Point")
     st.write(f"Predicted Close Price: ${latest_prediction:.2f}")
+
+    # Create a DataFrame with the actual and predicted values
+    results_df = pd.DataFrame({
+        'Actual Close': y_test,
+        'Predicted Close': y_pred
+    })
+
+    # Round the values to 2 decimal places
+    results_df = results_df.round(2).sort_index(ascending=False)
+
+    # Display the table in Streamlit
+    st.subheader("Actual vs Predicted Close Prices")
+    st.dataframe(results_df)
 
 with tab5:
     st.markdown("<h2 style='text-align: center;'>Predictions Using Random Forest Classification</h2>", unsafe_allow_html=True)
