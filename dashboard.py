@@ -170,6 +170,15 @@ def lagit_dir(df, lags):
         names.append('Lag_'+str(i)+'_dir')
     return names
 
+#Colors for trigger words
+def color_text(val):
+    if val in ['Increase', 'Buy']:
+        return 'color: green'
+    elif val in ['Decrease', 'Sell']:
+        return 'color: red'
+    return ''
+
+
 #---------------------------------------------------Streamlit-------------------------------------------------
 
 #Create tabs for dashboard
@@ -300,19 +309,28 @@ with tab2:
 
     st.subheader(f"Prediction for Upcoming Close Price: {latest_prediction}")
 
-    #Create DataFrame with actual and predicted values
+    #Create DataFrame with actual and predicted values, as well as actual and predicted actions
     results_df = pd.DataFrame({
         'Open': X_test['open'],
         'Actual Close': y_test,
         'Predicted Close': y_pred,
     })
+    results_df['Actual Price Movement'] = np.where(results_df['Actual Close'] > results_df['Open'], 'Increase', 'Decrease')
+    results_df['Predicted Price Action'] = np.where(results_df['Predicted Close'] > results_df['Open'], 'Buy', 'Sell')
 
     # Round the values to 2 decimal places
     results_df = results_df.round(2).sort_index(ascending=False)
 
-    # Display the table in Streamlit
-    st.subheader("Actual vs Predicted Close Prices of Test Dataset")
-    st.dataframe(results_df)
+    #Style dataframe
+    styled_df = results_df.style.applymap(color_text, subset=['Actual Price Movement', 'Predicted Price Action'])
+
+    st.dataframe(styled_df)
+
+    correct_predictions = (results_df['Actual Price Movement'] == 'Increase') & (results_df['Predicted Price Action'] == 'Buy') | \
+                          (results_df['Actual Price Movement'] == 'Decrease') & (results_df['Predicted Price Action'] == 'Sell')
+    accuracy = correct_predictions.mean()
+
+    st.write(f"Trading Signal Accuracy: {accuracy:.2%}")
 
 #Logistic Regression Tab
 with tab3:
@@ -339,7 +357,7 @@ with tab3:
     y_pred = log_reg.predict(X_test)
 
     #Display DataFrame
-    st.subheader('Data with Lags and Direction')
+    st.subheader('Data with Calculated Lags and Direction')
     st.dataframe(df[['open', 'close', 'volume', 'returns', 'direction'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames])
 
     #Confusion Matrix
@@ -385,7 +403,7 @@ with tab4:
     y_pred = rf.predict(X_test)
 
     #Display DataFrame
-    st.subheader('Data with Lags')
+    st.subheader('Data with Calculated Lags')
     st.dataframe(df[['open', 'close', 'volume', 'returns'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames])
 
     #Create and display plot
@@ -411,21 +429,30 @@ with tab4:
     latest_data = X.iloc[-1].values.reshape(1, -1)
     latest_prediction = rf.predict(latest_data)[0]
 
-    st.subheader("Prediction for Latest Data Point")
-    st.write(f"Predicted Close Price: ${latest_prediction:.2f}")
+    st.subheader(f"Prediction for Upcoming Close Price: {latest_prediction}")
 
-    # Create a DataFrame with the actual and predicted values
+    #Create DataFrame with actual and predicted values, as well as actual and predicted actions
     results_df = pd.DataFrame({
+        'Open': X_test['open'],
         'Actual Close': y_test,
-        'Predicted Close': y_pred
+        'Predicted Close': y_pred,
     })
+    results_df['Actual Price Movement'] = np.where(results_df['Actual Close'] > results_df['Open'], 'Increase', 'Decrease')
+    results_df['Predicted Price Action'] = np.where(results_df['Predicted Close'] > results_df['Open'], 'Buy', 'Sell')
 
     # Round the values to 2 decimal places
     results_df = results_df.round(2).sort_index(ascending=False)
 
-    # Display the table in Streamlit
-    st.subheader("Actual vs Predicted Close Prices")
-    st.dataframe(results_df)
+    #Style dataframe
+    styled_df = results_df.style.applymap(color_text, subset=['Actual Price Movement', 'Predicted Price Action'])
+
+    st.dataframe(styled_df)
+
+    correct_predictions = (results_df['Actual Price Movement'] == 'Increase') & (results_df['Predicted Price Action'] == 'Buy') | \
+                          (results_df['Actual Price Movement'] == 'Decrease') & (results_df['Predicted Price Action'] == 'Sell')
+    accuracy = correct_predictions.mean()
+
+    st.write(f"Trading Signal Accuracy: {accuracy:.2%}")
 
 with tab5:
     st.markdown("<h2 style='text-align: center;'>Predictions Using Random Forest Classification</h2>", unsafe_allow_html=True)
