@@ -6,16 +6,20 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from binance.client import Client
 from datetime import datetime, timedelta
+
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestRegressor
+
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-from sklearn.impute import SimpleImputer
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.linear_model import LogisticRegression
+
 #---------------------------------------------------Functions-------------------------------------------------
 
 #Function to load in data from Binance
@@ -157,6 +161,15 @@ def lagit(df, lags):
         names.append('Lag_' + str(i))
     return names
 
+#Updated lag function which includes lag direction
+def lagit_dir(df, lags):
+    names = []
+    for i in range(1, lags+1):
+        df['Lag_'+str(i)] = df['returns'].shift(i)
+        df['Lag_'+str(i)+'_dir'] = [1 if j>0 else 0 for j in df['Lag_'+str(i)]]
+        names.append('Lag_'+str(i)+'_dir')
+    return names
+
 #Function to predict close price for given tiemframe
 def predict_close(model, open_price, lags):
     # Create a DataFrame with the input features
@@ -169,7 +182,7 @@ def predict_close(model, open_price, lags):
 #---------------------------------------------------Streamlit-------------------------------------------------
 
 #Create tabs for dashboard
-tab1, tab2, tab3 = st.tabs(["Data/Analytics", "Linear Regression", "Logistic Regression"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Data/Analytics", "Lin Regression", "Log Regression", "RF Regressor", "RF Classification"])
 
 #Data/Analytics Tab
 with tab1:
@@ -254,7 +267,7 @@ with tab2:
 
     # Display the DataFrame with calculated lags
     if show_lag_data:
-        st.markdown("<h3 style='text-align: center;'>Data with Calculated Lags</h3>", unsafe_allow_html=True)
+        st.subheader('Data with Calculated Lags')
         st.write(df[['open', 'close', 'volume', 'returns'] + lagnames].sort_index(ascending=False))
 
     # Build model
@@ -318,17 +331,16 @@ with tab3:
     #Centered title
     st.markdown("<h2 style='text-align: center;'>Predictions Using Logistic Regression</h2>", unsafe_allow_html=True)
 
-    #Create binary target variable
-    df['long_or_short'] = (df['close'] > df['open']).astype(int)
+    #Set up returns and direction
+    df['returns'] = np.log(df.close.pct_change() + 1)
+    df['direction'] = [1 if i>0 else 0 for i in df.returns]
 
-    #Display the DataFrame with calculated lags and target
-    if show_lag_data:
-        st.markdown("<h3 style='text-align: center;'>Data with Calculated Lags and Target</h3>", unsafe_allow_html=True)
-        st.write(df[['open', 'close', 'volume', 'returns', 'long_or_short'] + lagnames].sort_index(ascending=False))
+    dirnames = lagit_dir(df, 5)
 
-    # Build model
-    X = df[['open'] + lagnames]
-    y = df['long_or_short']
+    df.dropna(inplace=True)
+
+    X = df[['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5']+dirnames]
+    y = df['direction']
 
     log_reg = LogisticRegression()
 
@@ -337,76 +349,86 @@ with tab3:
     log_reg.fit(X_train, y_train)
 
     y_pred = log_reg.predict(X_test)
-    y_pred_proba = log_reg.predict_proba(X_test)[:, 1]
 
-    #Calculate the confusion matrix
+    #Display DataFrame
+    st.subheader('Data with Lags and Direction')
+    st.dataframe(df[['open', 'close', 'volume', 'returns', 'direction'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames])
+
+    #Confusion Matrix
+    st.subheader('Confusion Matrix')
     cm = metrics.confusion_matrix(y_test, y_pred)
-
-    #Create a heatmap of the confusion matrix
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    fig, ax = plt.subplots()
+    sns.heatmap(cm, annot=True, fmt='d')
     plt.title('Confusion Matrix')
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
+    st.pyplot(fig)
 
-    # Display the confusion matrix in Streamlit
-    st.pyplot(plt)
+    #Classification Report
+    st.subheader('Classification Report')
+    report = metrics.classification_report(y_test, y_pred, output_dict=True)
+    st.table(pd.DataFrame(report).transpose())
 
-    # Calculate metrics
-    accuracy = metrics.accuracy_score(y_test, y_pred)
-    precision = metrics.precision_score(y_test, y_pred)
-    recall = metrics.recall_score(y_test, y_pred)
-    f1 = metrics.f1_score(y_test, y_pred)
+    #Prediction for latest time
+    st.subheader('Prediction for Given TimeFrame')
+    latest_data = X.iloc[-1].values.reshape(1, -1)
+    latest_prediction = log_reg.predict(latest_data)[0]
+    latest_probability = log_reg.predict_proba(latest_data)[0][1]
 
-    # Display metrics
+    if latest_prediction == 1:
+        st.write('Prediction: Long (Price will likely go up)')
+    else:
+        st.write('Prediction: Short (Price will likely go down)')
+
+    st.write(f'Probability of price going up: {latest_probability:.2f}')
+
+with tab4:
+    #Centered title
+    st.markdown("<h2 style='text-align: center;'>Predictions Using Random Forest Regressor</h2>", unsafe_allow_html=True)
+
+    X = df[['open', 'Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5']+dirnames]
+    y = df['close']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
+
+    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+
+    rf.fit(X_train, y_train)
+    y_pred = rf.predict(X_test)
+
+    #Display DataFrame
+    st.subheader('Data with Lags')
+    st.dataframe(df[['open', 'close', 'volume', 'returns'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames])
+
+    #Create and display plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(y_test.index, y_test, label='Actual Close Price', color='blue')
+    ax.plot(y_test.index, y_pred, label='Predicted Close Price', color='red')
+    ax.set_title('Actual vs Predicted Close Price of Test Sample (Most Recent 1/5 of Data)')
+    ax.legend()
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+
+    #Calculate metrics
+    mse = metrics.mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    mae = metrics.mean_absolute_error(y_test, y_pred)
+    r2 = metrics.r2_score(y_test, y_pred)
+
+    #Display metrics
     st.subheader('Model Performance Metrics')
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Accuracy", f"{accuracy:.4f}")
-    col2.metric("Precision", f"{precision:.4f}")
-    col3.metric("Recall", f"{recall:.4f}")
-    col4.metric("F1 Score", f"{f1:.4f}")
+    col1.metric("Mean Squared Error", f"{mse:.6f}")
+    col2.metric("Root Mean Squared Error", f"{rmse:.6f}")
+    col3.metric("Mean Absolute Error", f"{mae:.6f}")
+    col4.metric("R-squared Score", f"{r2:.6f}")
 
-    # Function to predict direction
-    def predict_direction(model, open_price, lags):
-        input_data = pd.DataFrame([[open_price] + lags], columns=['open'] + [f'Lag_{i}' for i in range(1, len(lags)+1)])
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0][1]
-        return prediction, probability
+    #Prediction for the latest data point
+    latest_data = X.iloc[-1].values.reshape(1, -1)
+    latest_prediction = rf.predict(latest_data)[0]
 
-    # Get the most recent data point
-    latest_data = df.iloc[-1]
+    st.subheader("Prediction for Latest Data Point")
+    st.write(f"Predicted Close Price: ${latest_prediction:.2f}")
 
-    # Extract the required features
-    open_price = latest_data['open']
-    lags = [latest_data[f'Lag_{i}'] for i in range(1, 6)]
-
-    # Make the prediction
-    predicted_direction, predicted_probability = predict_direction(log_reg, open_price, lags)
-
-    # Display the prediction
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("Input features used for prediction:")
-        st.write(pd.DataFrame({'Feature': ['Open'] + [f'Lag_{i}' for i in range(1, 6)], 'Value': [open_price] + lags}))
-        
-    with col2:
-        direction = "Long (Price will go up)" if predicted_direction == 1 else "Short (Price will go down)"
-        st.metric(label="Predicted Direction for Timeframe", value=direction)
-        st.metric(label="Probability of Price Increase", value=f"{predicted_probability:.2%}")
-
-    # Create a DataFrame with y_test and y_pred
-    comparison_df = pd.DataFrame({
-        'Actual': y_test,
-        'Predicted': y_pred,
-        'Predicted Probability': y_pred_proba
-    }, index=y_test.index)
-
-    # Add a column to show if the prediction was correct
-    comparison_df['Correct'] = comparison_df['Actual'] == comparison_df['Predicted']
-
-    # Display the table in Streamlit
-    st.subheader("Comparison of Actual vs Predicted Values")
-    st.dataframe(comparison_df)
-
-    st.write("Class distribution:")
-    st.write(df['long_or_short'].value_counts(normalize=True))
+with tab5:
+    st.markdown("<h2 style='text-align: center;'>Predictions Using Random Forest Classification</h2>", unsafe_allow_html=True)
