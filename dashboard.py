@@ -358,7 +358,7 @@ with tab3:
 
     #Display DataFrame
     st.subheader('Data with Calculated Lags and Direction')
-    st.dataframe(df[['open', 'close', 'volume', 'returns', 'direction'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames])
+    st.dataframe(df[['open', 'close', 'volume', 'returns', 'direction'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames].sort_index(ascending=False))
 
     #Confusion Matrix
     st.subheader('Confusion Matrix')
@@ -376,17 +376,59 @@ with tab3:
     st.table(pd.DataFrame(report).transpose())
 
     #Prediction for latest time
-    st.subheader('Prediction for Given TimeFrame')
     latest_data = X.iloc[-1].values.reshape(1, -1)
     latest_prediction = log_reg.predict(latest_data)[0]
     latest_probability = log_reg.predict_proba(latest_data)[0][1]
 
     if latest_prediction == 1:
-        st.write('Prediction: Long (Price will likely go up)')
+        st.subheader(f"Prediction for Upcoming Close Price: Long")
     else:
-        st.write('Prediction: Short (Price will likely go down)')
+        st.subheader(f"Prediction for Upcoming Close Price: Short")
 
-    st.write(f'Probability of price going up: {latest_probability:.2f}')
+    #st.write(f'Probability of price going up: {latest_probability:.2f}')
+
+    #Create dataframe which shows y_test and y_pred
+    results_df = pd.DataFrame({
+    'Actual Price Movement': y_test,
+    'Predicted Action': y_pred
+    },)
+    results_df['Open'] = df.loc[results_df.index, 'open']
+    results_df['Close'] = df.loc[results_df.index, 'close']
+    results_df['Price Change %'] = ((results_df['Close'] - results_df['Open']) / results_df['Open'] * 100).round(2)
+
+
+    column_order = ['Open', 'Close', 'Actual Price Movement', 'Predicted Action', 'Price Change %']
+    results_df = results_df[column_order]
+
+    # Convert binary values to text
+    results_df['Actual Price Movement'] = results_df['Actual Price Movement'].map({1: 'Price Up', 0: 'Price Down'})
+    results_df['Predicted Action'] = results_df['Predicted Action'].map({1: 'Long', 0: 'Short'})
+
+    # Sort the DataFrame by date in descending order
+    results_df = results_df.sort_index(ascending=False)
+
+    # Define color function
+    def color_text(val):
+        if val in ['Price Up', 'Long']:
+            return 'color: green'
+        elif val in ['Price Down', 'Short']:
+            return 'color: red'
+        return ''
+
+    #Style dataframe with above function
+    styled_df = results_df.style.applymap(color_text)
+    #Apply color to price change percentage
+    styled_df = styled_df.applymap(lambda v: 'color: green' if v > 0 else 'color: red' if v < 0 else '', subset=['Price Change %'])  
+
+    #Display the styled DataFrame
+    st.dataframe(styled_df)
+
+    #Model Accuracy
+    correct_predictions = ((results_df['Actual Price Movement'] == 'Price Up') & (results_df['Predicted Action'] == 'Long')) | \
+                          ((results_df['Actual Price Movement'] == 'Price Down') & (results_df['Predicted Action'] == 'Short'))
+    accuracy = correct_predictions.mean()
+
+    st.write(f"Logistic Regression Model Accuracy: {accuracy:.2%}")
 
 with tab4:
     #Centered title
@@ -404,7 +446,7 @@ with tab4:
 
     #Display DataFrame
     st.subheader('Data with Calculated Lags')
-    st.dataframe(df[['open', 'close', 'volume', 'returns'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames])
+    st.dataframe(df[['open', 'close', 'volume', 'returns'] + ['Lag_1', 'Lag_2', 'Lag_3', 'Lag_4', 'Lag_5'] + dirnames].sort_index(ascending=False))
 
     #Create and display plot
     fig, ax = plt.subplots(figsize=(12, 6))
