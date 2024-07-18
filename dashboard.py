@@ -12,14 +12,15 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import RandomForestClassifier
 
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+#from sklearn.preprocessing import MinMaxScaler
+#from sklearn.preprocessing import StandardScaler
+#from sklearn.impute import SimpleImputer
 
 #---------------------------------------------------Functions-------------------------------------------------
 
