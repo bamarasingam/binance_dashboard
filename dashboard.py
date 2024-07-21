@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+#Libraries below may be used for anothr time
 #from sklearn.preprocessing import MinMaxScaler
 #from sklearn.preprocessing import StandardScaler
 #from sklearn.impute import SimpleImputer
@@ -85,13 +86,13 @@ def get_adx_emoji(adx):
 
 #Function to create chart
 def create_chart(df, symbol, chart_type):
-    # Create subplots
+    #Create subplots
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
                         vertical_spacing=0.1, 
                         subplot_titles=(f'{symbol} {chart_type} Chart', 'Volume'),
                         row_heights=[0.7, 0.3])
 
-    # Add main price chart
+    #Add price chart
     if chart_type == "Candlestick":
         fig.add_trace(
             go.Candlestick(x=df.index,
@@ -111,7 +112,7 @@ def create_chart(df, symbol, chart_type):
             row=1, col=1
         )
     
-    # Add EMA lines
+    #Add EMA lines
     fig.add_trace(
         go.Scatter(x=df.index, y=df.EMA_20.values, name='EMA20', line=dict(color='blue')),
         row=1, col=1
@@ -121,13 +122,13 @@ def create_chart(df, symbol, chart_type):
         row=1, col=1
     )
     
-    # Add volume chart
+    #Add volume
     fig.add_trace(
         go.Bar(x=df.index, y=df['volume'], name='Volume'),
         row=2, col=1
     )
     
-    # Update layout
+    #Update layout
     fig.update_layout(
         title_text=f'{symbol} Historical Data',
         xaxis_rangeslider_visible=False,
@@ -135,10 +136,9 @@ def create_chart(df, symbol, chart_type):
         showlegend=True
     )
 
-    # Update y-axis labels
+    #Update y-axis
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
-    
     # Update x-axis
     fig.update_xaxes(
         rangeselector=dict(
@@ -150,7 +150,7 @@ def create_chart(df, symbol, chart_type):
                 dict(step="all")
             ])
         ),
-        row=2, col=1  # Add range selector to bottom subplot
+        row=2, col=1  #Add range selector to bottom subplot
     )
     
     return fig
@@ -256,18 +256,18 @@ with tab2:
     #Centered title
     st.markdown("<h2 style='text-align: center;'>Predictions Using Linear Regression</h2>", unsafe_allow_html=True)
 
-    # Create returns column
+    #Create returns column
     df['returns'] = np.log(df.close.pct_change() + 1)
 
-    # Call function with associated amount of lags
+    #Call function with associated amount of lags
     lagnames = lagit(df, 5)
     df.dropna(inplace=True)
 
-    # Display the DataFrame with calculated lags
+    #Display the DataFrame with calculated lags
     st.subheader('Data with Calculated Lags')
     st.write(df[['open', 'close', 'volume', 'returns'] + lagnames].sort_index(ascending=False))
 
-    # Build model
+    #Build, train and test model
     X = df[['open'] + lagnames]
     y = df['close']
 
@@ -279,7 +279,7 @@ with tab2:
 
     y_pred = lr.predict(X_test)
 
-    # Create plot
+    #Create plot
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(y_test.index, y_test, label='Actual Close Price', color='blue')
     ax.plot(y_test.index, y_pred, label='Predicted Close Price', color='red')
@@ -287,7 +287,7 @@ with tab2:
     ax.legend()
     plt.xticks(rotation=45)
 
-    # Display the plot in Streamlit
+    #Display the plot in Streamlit
     st.pyplot(fig)
 
     # Calculate metrics
@@ -300,7 +300,7 @@ with tab2:
     metrics_df = pd.DataFrame({'Metric': ['Mean Squared Error', 'Root Mean Squared Error', 'Mean Absolute Error', 'R-squared Score'],'Value': [mse, rmse, mae, r2]})
     st.table(metrics_df.style.format({'Value': '{:.6f}'}))
 
-   #Prediction for the latest data point
+    #Prediction for the latest data point
     latest_data = X.iloc[-1].values.reshape(1, -1)
     latest_prediction = lr.predict(latest_data)[0]
 
@@ -315,7 +315,7 @@ with tab2:
     results_df['Actual Price Movement'] = np.where(results_df['Actual Close'] > results_df['Open'], 'Increase', 'Decrease')
     results_df['Predicted Price Action'] = np.where(results_df['Predicted Close'] > results_df['Open'], 'Buy', 'Sell')
 
-    # Round the values to 2 decimal places
+    #Round the values to 2 decimal places
     results_df = results_df.round(2).sort_index(ascending=False)
 
     #Style dataframe
@@ -397,14 +397,14 @@ with tab3:
     column_order = ['Open', 'Close', 'Actual Price Movement', 'Predicted Action', 'Price Change %']
     results_df = results_df[column_order]
 
-    # Convert binary values to text
+    #Convert binary values to text
     results_df['Actual Price Movement'] = results_df['Actual Price Movement'].map({1: 'Price Up', 0: 'Price Down'})
     results_df['Predicted Action'] = results_df['Predicted Action'].map({1: 'Long', 0: 'Short'})
 
-    # Sort the DataFrame by date in descending order
+    #Sort the DataFrame by date in descending order
     results_df = results_df.sort_index(ascending=False)
 
-    # Define color function
+    #Define color function
     def color_text(val):
         if val in ['Price Up', 'Long']:
             return 'color: green'
@@ -479,7 +479,7 @@ with tab4:
     results_df['Actual Price Movement'] = np.where(results_df['Actual Close'] > results_df['Open'], 'Increase', 'Decrease')
     results_df['Predicted Price Action'] = np.where(results_df['Predicted Close'] > results_df['Open'], 'Buy', 'Sell')
 
-    # Round the values to 2 decimal places
+    #Round the values to 2 decimal places
     results_df = results_df.round(2).sort_index(ascending=False)
 
     #Style dataframe
@@ -563,10 +563,10 @@ with tab5:
     results_df['Actual Price Movement'] = results_df['Actual Price Movement'].map({1: 'Price Up', 0: 'Price Down'})
     results_df['Predicted Action'] = results_df['Predicted Action'].map({1: 'Long', 0: 'Short'})
 
-    # Sort the DataFrame by date in descending order
+    #Sort the DataFrame by date in descending order
     results_df = results_df.sort_index(ascending=False)
 
-    # Define color function
+    #Define color function
     def color_text(val):
         if val in ['Price Up', 'Long']:
             return 'color: green'
