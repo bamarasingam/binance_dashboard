@@ -189,7 +189,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["Data/Analytics", "Lin Regression", "Log
 #Data/Analytics Tab
 with tab1:
     #Centered title
-    st.markdown("<h2 style='text-align: center;'>Technical Analysis Dashboard</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Technical Analysis Dashboard</h2>", unsafe_allow_html=True) #Center title
 
     #Sidebar Components
     symbol = st.sidebar.text_input("Crypto Symbol (ex. BTCUSDT)\n\nMust be a ticker from Binance", "BTCUSDT")
@@ -248,7 +248,9 @@ with tab1:
         st.markdown(f"- DMP : {round(dmp,2)} ") 
         st.markdown(f"- DMN : {round(dmn,2)} ") 
     
+    #Display chart 
     st.plotly_chart(create_chart(df, symbol, chart_type), use_container_width=True)
+    #Display dataframe
     st.write(reversed_df)
         
 #Linear Regression Tab
