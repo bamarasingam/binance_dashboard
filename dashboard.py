@@ -189,7 +189,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["Data/Analytics", "Lin Regression", "Log
 #Data/Analytics Tab
 with tab1:
     #Centered title
-    st.markdown("<h2 style='text-align: center;'>Crypto Technical Analysis Dashboard</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Technical Analysis Dashboard</h2>", unsafe_allow_html=True)
 
     #Sidebar Components
     symbol = st.sidebar.text_input("Crypto Symbol (ex. BTCUSDT)\n\nMust be a ticker from Binance", "BTCUSDT")
