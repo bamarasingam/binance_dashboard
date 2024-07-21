@@ -273,12 +273,16 @@ with tab2:
     X = df[['open'] + lagnames]
     y = df['close']
 
+    #Instantiate the model
     lr = LinearRegression()
 
+    #Train test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False, random_state=42)
 
+    #Train on training data
     lr.fit(X_train, y_train)
 
+    #Predictions
     y_pred = lr.predict(X_test)
 
     #Create plot
@@ -325,10 +329,12 @@ with tab2:
 
     st.dataframe(styled_df)
 
+    #Calculate trading signal accuracy
     correct_predictions = (results_df['Actual Price Movement'] == 'Increase') & (results_df['Predicted Price Action'] == 'Buy') | \
                           (results_df['Actual Price Movement'] == 'Decrease') & (results_df['Predicted Price Action'] == 'Sell')
     accuracy = correct_predictions.mean()
 
+    #Display accuracy
     st.write(f"Trading Signal Accuracy: {accuracy:.2%}")
 
 #Logistic Regression Tab
@@ -361,13 +367,13 @@ with tab3:
 
     #Confusion Matrix
     st.subheader('Confusion Matrix')
-    cm = metrics.confusion_matrix(y_test, y_pred)
+    cm = metrics.confusion_matrix(y_test, y_pred)   #Actual vs predicted
     fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt='d')
+    sns.heatmap(cm, annot=True, fmt='d')            #Color
     plt.title('Confusion Matrix')
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
-    st.pyplot(fig)
+    st.pyplot(fig)  
 
     #Classification Report
     st.subheader('Classification Report')
@@ -561,7 +567,7 @@ with tab5:
     column_order = ['Open', 'Close', 'Actual Price Movement', 'Predicted Action', 'Price Change %']
     results_df = results_df[column_order]
 
-    # Convert binary values to text
+    #Convert binary values to text
     results_df['Actual Price Movement'] = results_df['Actual Price Movement'].map({1: 'Price Up', 0: 'Price Down'})
     results_df['Predicted Action'] = results_df['Predicted Action'].map({1: 'Long', 0: 'Short'})
 
