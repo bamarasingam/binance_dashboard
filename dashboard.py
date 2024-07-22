@@ -2,8 +2,12 @@
 import streamlit as st
 import pandas as pd
 import pandas_ta as ta
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
+
 from binance.client import Client
 from datetime import datetime, timedelta
 
@@ -14,9 +18,6 @@ from sklearn.ensemble import RandomForestClassifier
 
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 #Libraries below may be used for anothr time
 #from sklearn.preprocessing import MinMaxScaler
