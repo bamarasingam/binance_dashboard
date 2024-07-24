@@ -1,5 +1,6 @@
 #Libraries
 import streamlit as st
+
 import pandas as pd
 import pandas_ta as ta
 import numpy as np
@@ -19,7 +20,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
-#Libraries below may be used for anothr time
+#Extra libraries
 #from sklearn.preprocessing import MinMaxScaler
 #from sklearn.preprocessing import StandardScaler
 #from sklearn.impute import SimpleImputer
@@ -104,7 +105,7 @@ def create_chart(df, symbol, chart_type):
                            name="Price"),
             row=1, col=1
         )
-    else:  # Line chart
+    else:  #Line chart
         fig.add_trace(
             go.Scatter(x=df.index,
                        y=df['close'],
@@ -133,14 +134,14 @@ def create_chart(df, symbol, chart_type):
     fig.update_layout(
         title_text=f'{symbol} Historical Data',
         xaxis_rangeslider_visible=False,
-        height=800,  # Increase overall height of the figure
+        height=800,  #Increase overall height of the figure
         showlegend=True
     )
 
     #Update y-axis
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
-    # Update x-axis
+    #Update x-axis
     fig.update_xaxes(
         rangeselector=dict(
             buttons=list([
@@ -297,7 +298,7 @@ with tab2:
     #Display the plot in Streamlit
     st.pyplot(fig)
 
-    # Calculate metrics
+    #Calculate metrics
     mse = metrics.mean_squared_error(y_test, y_pred)
     rmse = np.sqrt(mse)
     mae = metrics.mean_absolute_error(y_test, y_pred)
